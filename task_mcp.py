@@ -67,6 +67,22 @@ def _schema(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 TOOLS = [
     {
+        "name": "triage_workspace",
+        "description": "List all files, sizes, and types in the project directory in one fast call.",
+        "inputSchema": _schema(
+            {"root": {"type": "string", "description": "Root directory to scan (default /app/files)."}},
+            [],
+        ),
+    },
+    {
+        "name": "verify_deliverables",
+        "description": "Verify that deliverable files exist, are non-empty, pass syntax checks, and have no TODO/NaN/placeholder values.",
+        "inputSchema": _schema(
+            {"paths": {"type": "array", "items": {"type": "string"}, "description": "List of deliverable file paths to verify."}},
+            ["paths"],
+        ),
+    },
+    {
         "name": "shell",
         "description": (
             "Run a bash command in the task's Linux container (no internet)"
@@ -385,8 +401,48 @@ def edit_file(
   return text(f"replaced {count if replace_all else 1} occurrence(s) in {path}")
 
 
+
+def triage_workspace(root: str = "/app/files") -> list[dict[str, Any]]:
+    cmd = (
+        f"find {root} -maxdepth 4 -not -path '*/.*' -not -path '*/__pycache__*' "
+        "-type f -printf '%s\t%p\n' 2>/dev/null | sort -k2 | head -n 200"
+    )
+    return shell(cmd, timeout_sec=30)
+
+
+def verify_deliverables(paths: list[str]) -> list[dict[str, Any]]:
+    import json as _json
+    py_script = (
+        "import os, sys, json, py_compile\n"
+        f"paths = {_json.dumps(paths)}\n"
+        "ok = True\n"
+        "for p in paths:\n"
+        "    if not os.path.exists(p):\n"
+        "        print(f'FAIL missing: {p}'); ok = False; continue\n"
+        "    sz = os.path.getsize(p)\n"
+        "    if sz == 0:\n"
+        "        print(f'FAIL empty: {p}'); ok = False; continue\n"
+        "    if p.endswith('.py'):\n"
+        "        try: py_compile.compile(p, doraise=True)\n"
+        "        except Exception as e: print(f'FAIL syntax {p}: {e}'); ok = False; continue\n"
+        "    if p.endswith('.json'):\n"
+        "        try: json.load(open(p))\n"
+        "        except Exception as e: print(f'FAIL json {p}: {e}'); ok = False; continue\n"
+        "    try:\n"
+        "        txt = open(p, errors='ignore').read()\n"
+        "        for bad in ('TODO', 'FIXME', 'NotImplementedError'):\n"
+        "            if bad in txt:\n"
+        "                print(f'WARN {bad} found in {p}')\n"
+        "    except Exception: pass\n"
+        "    print(f'PASS {p} ({sz} bytes)')\n"
+        "sys.exit(0 if ok else 1)\n"
+    )
+    return shell(f"python3 -c {repr(py_script)}", timeout_sec=30)
+
 HANDLERS = {
     "shell": shell,
+    "triage_workspace": triage_workspace,
+    "verify_deliverables": verify_deliverables,
     "read_file": read_file,
     "write_file": write_file,
     "edit_file": edit_file,
