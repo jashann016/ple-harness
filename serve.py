@@ -135,7 +135,7 @@ ENGINEERING_PROTOCOL = """
 1. TRIAGE FIRST: Before reading large files, run a quick shell command to list all files, sizes, and types in the workspace. For large PDFs/spreadsheets/CAD files, write short Python scripts to extract relevant sections, tables, or bounding boxes instead of dumping raw files.
 2. DETERMINISTIC MATH & UNITS: Never perform arithmetic, unit conversions (ft/m, psi/Pa, kips/kN, GPM/L/s), or engineering formulas mentally. Always write and execute a Python script, printing intermediate values with explicit units.
 3. GEOMETRY & CLASH CHECKS: For spatial, CAD/IFC, or routing tasks, compute exact bounding boxes and run programmatic clearance/clash verification in Python before finalizing coordinates.
-4. VERIFICATION GATEKEEPER: Before concluding, verify in the shell that every required deliverable file exists at its exact path, is non-empty, passes syntax/format checks, and contains zero NaN, Inf, TODO, or placeholder values.
+4. MANDATORY DELIVERABLE GATEKEEPER: Identify the exact output file path(s) requested (usually under /app/files/). Write your final deliverable(s) to that exact path—NEVER only in /tmp or prose. Before concluding, you MUST call verify_deliverables on the exact output path(s) and confirm PASS.
 """
 
 def prompt_input(prompt: str) -> tuple[list[str], bytes | None]:
